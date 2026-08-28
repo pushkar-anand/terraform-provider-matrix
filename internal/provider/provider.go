@@ -160,15 +160,19 @@ func (p *MatrixProvider) Configure(ctx context.Context, req provider.ConfigureRe
 		return
 	}
 
+	// User IDs are built from the server name this carries, which is not
+	// derivable from the URL: a homeserver routinely answers on one hostname and
+	// names itself another.
+	client.SetIdentity(userID)
+
 	resp.DataSourceData = client
 	resp.ResourceData = client
-
-	_ = userID
 }
 
 func (p *MatrixProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewRoomResource,
+		NewUserResource,
 	}
 }
 

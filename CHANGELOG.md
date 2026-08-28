@@ -1,4 +1,20 @@
-## 0.1.1 (Unreleased)
+## 0.2.0 (Unreleased)
+
+FEATURES:
+
+* **New Resource:** `matrix_user`, managing local accounts through the Synapse
+  admin API. Passwords are a write-only argument, so they are sent to the
+  homeserver without ever being written to state or to a plan file. Using
+  `password_wo` requires Terraform 1.11 or later; the rest of the resource does
+  not.
+
+NOTES:
+
+* Destroying a `matrix_user` **deactivates** the account rather than deleting
+  it, because Matrix has no delete for users. The user ID stays claimed on the
+  homeserver permanently and cannot be registered again.
+
+## 0.1.1
 
 FEATURES:
 

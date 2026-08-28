@@ -35,6 +35,11 @@ type Client struct {
 	token     string
 	userAgent string
 	hc        *http.Client
+
+	// userID is the identity the token belongs to, filled in by SetIdentity
+	// once the provider has called Whoami. User IDs are built from the server
+	// name it carries.
+	userID string
 }
 
 // NewClient returns a client for the homeserver at rawURL authenticating with
