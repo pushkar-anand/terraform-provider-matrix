@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -22,8 +23,12 @@ import (
 )
 
 const (
-	eventRoomName  = "m.room.name"
-	eventRoomTopic = "m.room.topic"
+	eventRoomName       = "m.room.name"
+	eventRoomTopic      = "m.room.topic"
+	eventRoomEncryption = "m.room.encryption"
+
+	// The only algorithm Matrix defines for room encryption.
+	megolmV1 = "m.megolm.v1.aes-sha2"
 )
 
 var (
@@ -46,6 +51,7 @@ type RoomResourceModel struct {
 	Visibility     types.String `tfsdk:"visibility"`
 	AliasLocalpart types.String `tfsdk:"alias_localpart"`
 	RoomVersion    types.String `tfsdk:"room_version"`
+	Encryption     types.Bool   `tfsdk:"encryption"`
 	Block          types.Bool   `tfsdk:"block_on_destroy"`
 	Purge          types.Bool   `tfsdk:"purge_on_destroy"`
 }
@@ -119,6 +125,28 @@ func (r *RoomResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"encryption": schema.BoolAttribute{
+				MarkdownDescription: "Enable end-to-end encryption (`m.room.encryption`). Defaults to " +
+					"`true`; set it to `false` for rooms a bot or bridge must read, since those need " +
+					"working E2EE support and a device store that survives a restart." +
+					"\n\n~> **Encryption cannot be switched off.** Matrix has no way to remove the " +
+					"state event once written, so changing this from `true` to `false` destroys and " +
+					"recreates the room, losing its history. Turning it on for an existing room is done " +
+					"in place.",
+				Optional: true,
+				Computed: true,
+				Default:  booldefault.StaticBool(true),
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.RequiresReplaceIf(
+						func(_ context.Context, req planmodifier.BoolRequest, resp *boolplanmodifier.RequiresReplaceIfFuncResponse) {
+							// Only disabling forces replacement; enabling is a state write.
+							resp.RequiresReplace = req.StateValue.ValueBool() && !req.PlanValue.ValueBool()
+						},
+						"If encryption is disabled, Terraform will destroy and recreate the room.",
+						"If encryption is disabled, Terraform will destroy and recreate the room.",
+					),
+				},
+			},
 			"block_on_destroy": schema.BoolAttribute{
 				MarkdownDescription: "Prevent the room being rejoined or recreated under the same ID " +
 					"after it is destroyed. Defaults to `false`.",
@@ -171,6 +199,15 @@ func (r *RoomResource) Create(ctx context.Context, req resource.CreateRequest, r
 		Visibility:    plan.Visibility.ValueString(),
 		RoomAliasName: plan.AliasLocalpart.ValueString(),
 		RoomVersion:   plan.RoomVersion.ValueString(),
+	}
+
+	// Set at creation rather than afterwards so there is no window in which the
+	// room exists unencrypted.
+	if plan.Encryption.ValueBool() {
+		createReq.InitialState = []matrix.StateEvent{{
+			Type:    eventRoomEncryption,
+			Content: json.RawMessage(fmt.Sprintf(`{"algorithm":%q}`, megolmV1)),
+		}}
 	}
 
 	roomID, err := r.client.CreateRoom(ctx, createReq)
@@ -235,6 +272,15 @@ func (r *RoomResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	state.Name = optionalString(name, state.Name)
 	state.Topic = optionalString(topic, state.Topic)
 
+	encrypted, err := r.client.HasState(ctx, roomID, eventRoomEncryption)
+	if err != nil {
+		resp.Diagnostics.AddError("Cannot read room encryption", err.Error())
+
+		return
+	}
+
+	state.Encryption = types.BoolValue(encrypted)
+
 	visibility, err := r.client.GetDirectoryVisibility(ctx, roomID)
 	if err != nil && !matrix.IsNotFound(err) {
 		resp.Diagnostics.AddError("Cannot read room directory visibility", err.Error())
@@ -273,6 +319,15 @@ func (r *RoomResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	if !plan.Topic.Equal(state.Topic) {
 		if err := r.setStateString(ctx, roomID, eventRoomTopic, "topic", plan.Topic); err != nil {
 			resp.Diagnostics.AddError("Cannot update room topic", err.Error())
+
+			return
+		}
+	}
+
+	if plan.Encryption.ValueBool() && !state.Encryption.ValueBool() {
+		content := json.RawMessage(fmt.Sprintf(`{"algorithm":%q}`, megolmV1))
+		if _, err := r.client.SetState(ctx, roomID, eventRoomEncryption, "", content); err != nil {
+			resp.Diagnostics.AddError("Cannot enable room encryption", err.Error())
 
 			return
 		}

@@ -9,3 +9,12 @@ resource "matrix_room" "ops" {
   # Listing in the public directory is independent of the join rules above.
   visibility = "private"
 }
+
+resource "matrix_room" "bots" {
+  name  = "Bots"
+  topic = "Automation posts here"
+
+  # Off because bots need working E2EE and a device store that survives a
+  # restart. It cannot be turned back on without recreating the room.
+  encryption = false
+}

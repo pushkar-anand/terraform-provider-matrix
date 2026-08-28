@@ -21,6 +21,8 @@ func TestAccRoomResource(t *testing.T) {
 					resource.TestCheckResourceAttr("matrix_room.test", "name", "acctest room"),
 					resource.TestCheckResourceAttr("matrix_room.test", "topic", "first topic"),
 					resource.TestCheckResourceAttr("matrix_room.test", "visibility", "private"),
+					// Encrypted unless asked otherwise.
+					resource.TestCheckResourceAttr("matrix_room.test", "encryption", "true"),
 					// The homeserver assigns both, so they only appear after apply.
 					resource.TestCheckResourceAttrSet("matrix_room.test", "id"),
 					resource.TestCheckResourceAttrSet("matrix_room.test", "room_version"),
