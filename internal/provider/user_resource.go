@@ -223,9 +223,16 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 	userID := r.client.UserIDFor(plan.Localpart.ValueString())
 
 	upsert := matrix.UpsertUserRequest{
-		Admin:       ptr(plan.Admin.ValueBool()),
 		Deactivated: ptr(plan.Deactivated.ValueBool()),
 		Locked:      ptr(plan.Locked.ValueBool()),
+	}
+
+	// admin:false is deliberately not sent. The homeserver maps it onto a revoke,
+	// and revoking from an account that was never an admin is an error -- which
+	// is every account this has just created. Demotion is handled after the
+	// response, in the one case where there is anything to demote.
+	if plan.Admin.ValueBool() {
+		upsert.Admin = ptr(true)
 	}
 
 	if !config.Password.IsNull() {
@@ -258,6 +265,18 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 		resp.Diagnostics.AddError("Cannot create user", err.Error())
 
 		return
+	}
+
+	// The endpoint is an upsert, so it may have adopted an account that already
+	// existed -- and that one can be an admin already. This is the only case where
+	// a revoke has anything to act on.
+	if !plan.Admin.ValueBool() && bool(details.Admin) {
+		details, err = r.client.UpsertUser(ctx, userID, matrix.UpsertUserRequest{Admin: ptr(false)})
+		if err != nil {
+			resp.Diagnostics.AddError("User created but cannot be demoted from admin", err.Error())
+
+			return
+		}
 	}
 
 	plan.ID = types.StringValue(userID)

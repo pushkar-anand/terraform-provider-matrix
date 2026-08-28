@@ -131,9 +131,9 @@ func (c *Client) UserID() string { return c.userID }
 // ServerName returns the homeserver's name, taken from the authenticated user
 // ID rather than from the URL.
 //
-// The two differ routinely: this server answers on matrix.lab.pushkar.dev but
-// names itself lab.pushkar.dev, and it is the latter that user IDs are built
-// from. Deriving it from the URL would produce MXIDs the server rejects.
+// The two differ routinely: a homeserver commonly answers on one hostname and
+// names itself another, and it is the latter that user IDs are built from.
+// Deriving it from the URL would produce MXIDs the server rejects.
 func (c *Client) ServerName() string {
 	_, serverName, found := strings.Cut(c.userID, ":")
 	if !found {

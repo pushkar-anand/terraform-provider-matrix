@@ -1,3 +1,14 @@
+## 0.2.1
+
+BUG FIXES:
+
+* `matrix_user`: creating an account with `admin = false` — the default, and so
+  every ordinary account — failed with `M_UNKNOWN: <user> was never an admin`.
+  The homeserver maps `admin: false` onto a revoke, and revoking from an account
+  that never held admin is an error, so the flag is no longer sent when creating
+  a new account. An account the upsert adopts rather than creates is still
+  demoted when the configuration asks for it.
+
 ## 0.2.0
 
 FEATURES:
