@@ -190,3 +190,20 @@ func (c *Client) GetStateString(ctx context.Context, roomID, eventType, field st
 
 	return value, nil
 }
+
+// HasState reports whether a state event exists in the room.
+//
+// Presence is the whole signal for events like m.room.encryption, whose content
+// carries no on/off flag -- the event existing is what enables the feature.
+func (c *Client) HasState(ctx context.Context, roomID, eventType string) (bool, error) {
+	_, err := c.GetState(ctx, roomID, eventType, "")
+	if err != nil {
+		if IsNotFound(err) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return true, nil
+}
