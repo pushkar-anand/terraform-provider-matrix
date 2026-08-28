@@ -110,15 +110,25 @@ func IsUnrecognized(err error) bool {
 // Do issues a request against path, encoding in as JSON when non-nil and
 // decoding the response into out when non-nil.
 func (c *Client) Do(ctx context.Context, method, path string, in, out any) error {
+	if in == nil {
+		return c.doRaw(ctx, method, path, "", nil, out)
+	}
+
+	encoded, err := json.Marshal(in)
+	if err != nil {
+		return fmt.Errorf("encoding request body: %w", err)
+	}
+
+	return c.doRaw(ctx, method, path, "application/json", encoded, out)
+}
+
+// doRaw issues a request with an already-encoded body, which is what the media
+// endpoints need: they take the file bytes themselves, under the file's own
+// content type rather than application/json.
+func (c *Client) doRaw(ctx context.Context, method, path, contentType string, payload []byte, out any) error {
 	var body io.Reader
-
-	if in != nil {
-		encoded, err := json.Marshal(in)
-		if err != nil {
-			return fmt.Errorf("encoding request body: %w", err)
-		}
-
-		body = bytes.NewReader(encoded)
+	if payload != nil {
+		body = bytes.NewReader(payload)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, c.base.String()+path, body)
@@ -133,8 +143,8 @@ func (c *Client) Do(ctx context.Context, method, path string, in, out any) error
 		req.Header.Set("User-Agent", c.userAgent)
 	}
 
-	if in != nil {
-		req.Header.Set("Content-Type", "application/json")
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
 	}
 
 	resp, err := c.hc.Do(req)
@@ -143,7 +153,7 @@ func (c *Client) Do(ctx context.Context, method, path string, in, out any) error
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	payload, err := io.ReadAll(resp.Body)
+	received, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("reading response body: %w", err)
 	}
@@ -152,16 +162,16 @@ func (c *Client) Do(ctx context.Context, method, path string, in, out any) error
 		apiErr := &APIError{Status: resp.StatusCode}
 		// A non-JSON body is normal for proxy-generated errors; the status alone
 		// still identifies the failure.
-		_ = json.Unmarshal(payload, apiErr)
+		_ = json.Unmarshal(received, apiErr)
 
 		return apiErr
 	}
 
-	if out == nil || len(payload) == 0 {
+	if out == nil || len(received) == 0 {
 		return nil
 	}
 
-	if err := json.Unmarshal(payload, out); err != nil {
+	if err := json.Unmarshal(received, out); err != nil {
 		return fmt.Errorf("decoding response from %s %s: %w", method, path, err)
 	}
 

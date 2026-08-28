@@ -11,8 +11,8 @@ The provider speaks two APIs, and works against any homeserver serving both —
 
 Nothing in the provider is specific to one homeserver implementation.
 
-> **Status:** early development. `matrix_room` and `matrix_user` are the
-> resources so far, and the schema may still change.
+> **Status:** early development. `matrix_room`, `matrix_user` and `matrix_media`
+> are the resources so far, and the schema may still change.
 
 ## Why the admin API
 
@@ -87,6 +87,27 @@ resource "matrix_user" "alice" {
 
 Because nothing stores the password, nothing can detect that it changed —
 `password_wo_version` is what tells the provider to send it again.
+
+## Avatars
+
+Matrix profile pictures are content-repository references, not ordinary URLs, so
+a picture has to be uploaded before it can be set. `matrix_media` does the upload
+and exports the `mxc://` URI:
+
+```terraform
+resource "matrix_media" "alice_avatar" {
+  source = "${path.module}/avatars/alice.png"
+}
+
+resource "matrix_user" "alice" {
+  localpart  = "alice"
+  avatar_url = matrix_media.alice_avatar.mxc_uri
+}
+```
+
+The file is hashed during planning, so editing `avatars/alice.png` in place
+uploads the new picture and repoints the avatar even though nothing in the
+configuration changed.
 
 Two things about users have no workaround, and are worth knowing before you
 manage any: Matrix cannot **delete** an account, so a destroy deactivates it and

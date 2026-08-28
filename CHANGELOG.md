@@ -8,11 +8,22 @@ FEATURES:
   `password_wo` requires Terraform 1.11 or later; the rest of the resource does
   not.
 
+* **New Resource:** `matrix_media`, uploading a file to the content repository
+  and exporting its `mxc://` URI. Matrix profile pictures are content-repository
+  references rather than ordinary URLs, so this is what makes a `matrix_user`
+  avatar expressible as code. The source file is hashed during planning, so
+  editing it in place is detected even though the path has not changed.
+
 NOTES:
 
 * Destroying a `matrix_user` **deactivates** the account rather than deleting
   it, because Matrix has no delete for users. The user ID stays claimed on the
   homeserver permanently and cannot be registered again.
+
+* `matrix_media` uploads are immutable: the homeserver assigns a random media ID
+  and the bytes behind it can never be rewritten, so any change replaces the
+  upload. Nothing tracks who refers to a given URI, so destroying media that is
+  still referenced leaves a broken reference behind.
 
 ## 0.1.1
 
