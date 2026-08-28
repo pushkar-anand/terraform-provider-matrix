@@ -1,64 +1,101 @@
-# Terraform Provider Scaffolding (Terraform Plugin Framework)
+# Terraform Provider for Matrix
 
-_This template repository is built on the [Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework). The template repository built on the [Terraform Plugin SDK](https://github.com/hashicorp/terraform-plugin-sdk) can be found at [terraform-provider-scaffolding](https://github.com/hashicorp/terraform-provider-scaffolding). See [Which SDK Should I Use?](https://developer.hashicorp.com/terraform/plugin/framework-benefits) in the Terraform documentation for additional information._
+Manages rooms and users on a [Matrix](https://matrix.org) homeserver as code.
 
-This repository is a *template* for a [Terraform](https://www.terraform.io) provider. It is intended as a starting point for creating Terraform providers, containing:
+The provider speaks two APIs, and works against any homeserver serving both —
+[Synapse](https://github.com/element-hq/synapse) and
+[tuwunel](https://github.com/matrix-construct/tuwunel) are the tested targets:
 
-- A resource and a data source (`internal/provider/`),
-- Examples (`examples/`) and generated documentation (`docs/`),
-- Miscellaneous meta files.
+- the **Client-Server API** for rooms and room state
+- the **Synapse admin API** for user management and room deletion
 
-These files contain boilerplate code that you will need to edit to create your own Terraform provider. Tutorials for creating Terraform providers can be found on the [HashiCorp Developer](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework) platform. _Terraform Plugin Framework specific guides are titled accordingly._
+Nothing in the provider is specific to one homeserver implementation.
 
-Please see the [GitHub template repository documentation](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-from-a-template) for how to create a new repository from this template on GitHub.
+> **Status:** early development. `matrix_room` is the only resource so far, and
+> the schema may still change before `v0.1.0`.
 
-Once you've written your provider, you'll want to [publish it on the Terraform Registry](https://developer.hashicorp.com/terraform/registry/providers/publishing) so that others can use it.
+## Why the admin API
+
+Matrix has no way to delete a room. The Client-Server API can only make a user
+*leave* one, so a provider built on the spec API alone would drop a room from
+Terraform state while leaving it live and joinable on the server. Room deletion
+therefore goes through the Synapse admin API, and a homeserver that does not
+serve it gets an explicit error rather than a silent no-op.
+
+The same applies to users: user management is not part of the Matrix
+specification at all, and the Synapse admin API is the closest thing to a
+portable interface for it.
+
+## Usage
+
+```terraform
+terraform {
+  required_providers {
+    matrix = {
+      source  = "pushkar-anand/matrix"
+      version = "~> 0.1"
+    }
+  }
+}
+
+provider "matrix" {
+  homeserver_url = "https://matrix.example.org"
+  access_token   = var.matrix_access_token
+}
+
+resource "matrix_room" "ops" {
+  name       = "Ops"
+  topic      = "Alerts and incident chatter"
+  preset     = "private_chat"
+  visibility = "private"
+}
+```
+
+Both provider settings can come from the environment instead, which is the
+better place for the token:
+
+| Variable | Attribute |
+|---|---|
+| `MATRIX_HOMESERVER_URL` | `homeserver_url` |
+| `MATRIX_ACCESS_TOKEN` | `access_token` |
+
+The token must belong to a **server administrator** for anything that touches
+the admin API — room deletion today, users later. Room creation and state edits
+need only an ordinary account.
 
 ## Requirements
 
-- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
-- [Go](https://golang.org/doc/install) >= 1.24
+- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0, or [OpenTofu](https://opentofu.org)
+- [Go](https://go.dev/doc/install) >= 1.27 (to build from source)
 
-## Building the Provider
+## Developing
 
-1. Clone the repository
-1. Enter the repository directory
-1. Build the provider using the Go `install` command:
+Build and install into `$GOBIN`:
 
 ```shell
-go install
+make install
 ```
 
-## Adding Dependencies
-
-This provider uses [Go modules](https://github.com/golang/go/wiki/Modules).
-Please see the Go documentation for the most up to date information about using Go modules.
-
-To add a new dependency `github.com/author/dependency` to your Terraform provider:
+Regenerate documentation after any schema change — `docs/` is generated from the
+schema and the files under `examples/`, never edited by hand:
 
 ```shell
-go get github.com/author/dependency
-go mod tidy
+make generate
 ```
 
-Then commit the changes to `go.mod` and `go.sum`.
+Run unit tests:
 
-## Using the Provider
+```shell
+make test
+```
 
-Fill this in for each provider
-
-## Developing the Provider
-
-If you wish to work on the provider, you'll first need [Go](http://www.golang.org) installed on your machine (see [Requirements](#requirements) above).
-
-To compile the provider, run `go install`. This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
-
-To generate or update documentation, run `make generate`.
-
-In order to run the full suite of Acceptance tests, run `make testacc`.
-
-*Note:* Acceptance tests create real resources, and often cost money to run.
+Acceptance tests create real rooms on a real homeserver, so point them at a
+throwaway instance rather than anything you care about:
 
 ```shell
 make testacc
 ```
+
+## License
+
+[MPL-2.0](LICENSE)
