@@ -18,17 +18,18 @@ var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServe
 	"matrix": providerserver.NewProtocol6WithError(New("test")()),
 }
 
-// testAccPreCheck fails fast when the homeserver credentials are absent.
+// testAccPreCheck skips the test when no homeserver is configured.
 //
-// Acceptance tests create and delete real rooms, so they need a real server;
-// without this the failure surfaces as an opaque provider configuration error
-// partway through a test run.
+// Acceptance tests create and delete real rooms, so they need a real server.
+// Skipping rather than failing keeps CI meaningful on a fork or a pull request
+// that has no homeserver to point at, where a failure would say nothing about
+// the change under test.
 func testAccPreCheck(t *testing.T) {
 	t.Helper()
 
 	for _, key := range []string{envHomeserverURL, envAccessToken} {
 		if os.Getenv(key) == "" {
-			t.Fatalf("%s must be set for acceptance tests", key)
+			t.Skipf("%s is not set; skipping acceptance test", key)
 		}
 	}
 }
