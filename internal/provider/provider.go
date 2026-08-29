@@ -174,6 +174,7 @@ func (p *MatrixProvider) Resources(_ context.Context) []func() resource.Resource
 		NewRoomResource,
 		NewUserResource,
 		NewMediaResource,
+		NewRoomMemberResource,
 	}
 }
 
