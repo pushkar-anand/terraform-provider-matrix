@@ -11,8 +11,8 @@ The provider speaks two APIs, and works against any homeserver serving both —
 
 Nothing in the provider is specific to one homeserver implementation.
 
-> **Status:** early development. `matrix_room`, `matrix_user` and `matrix_media`
-> are the resources so far, and the schema may still change.
+> **Status:** early development. `matrix_room`, `matrix_user`, `matrix_media` and
+> `matrix_room_member` are the resources so far, and the schema may still change.
 
 ## Why the admin API
 
@@ -113,6 +113,35 @@ Two things about users have no workaround, and are worth knowing before you
 manage any: Matrix cannot **delete** an account, so a destroy deactivates it and
 the user ID stays claimed for good; and it cannot **rename** one, so changing
 `localpart` deactivates the old account and creates a separate new one.
+
+## Membership
+
+`matrix_room_member` puts an account in a room:
+
+```terraform
+resource "matrix_room_member" "alice_ops" {
+  room_id = matrix_room.ops.id
+  user_id = matrix_user.alice.id
+}
+```
+
+That defaults to `membership = "join"`, which is the one operation the
+Client-Server API cannot do. The Matrix auth rules require a `join` membership
+event to be sent by the joining user themselves, so no amount of administrative
+power lets one account accept an invitation on another's behalf — the provider
+uses the admin API's join endpoint instead, and that only works for **local**
+users. Inviting a remote user is fine; forcing one to join is rejected during
+planning.
+
+That endpoint does not invite either: it appends the member event as the target
+user and runs the ordinary auth checks, which an uninvited account fails in a
+room that admits people by invitation. The provider sends the invitation first
+in that case, so a join into a private room works without a second resource.
+
+`membership = "invite"` is a floor rather than an exact value. Terraform can
+withdraw an invitation but has nothing that un-accepts one, so an invitee who
+joins is not treated as drift and does not get planned back out of the room on
+the next apply. `current_membership` reports what the homeserver actually holds.
 
 ## Requirements
 

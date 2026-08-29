@@ -1,3 +1,23 @@
+## 0.3.0
+
+FEATURES:
+
+* **New Resource:** `matrix_room_member`, managing one user's membership of one
+  room. Invites, kicks and bans go through the Client-Server API; `join` uses
+  the Synapse admin API, because the Matrix auth rules only accept a `join`
+  membership event from the joining user themselves, so an administrator can
+  invite an account but never accept on its behalf. Forcing a join is therefore
+  limited to local users, which the provider rejects at plan time rather than
+  letting the homeserver refuse it at apply. That endpoint appends the member
+  event as the target user and puts it through the ordinary auth checks without
+  inviting on the way, so in a room that admits people by invitation the
+  provider sends the invitation first.
+
+  `membership = "invite"` is a floor rather than an exact value: a user who
+  accepts is not drift, since Terraform can withdraw an invitation but has no
+  way to un-accept one. The `current_membership` attribute reports what the
+  homeserver actually holds.
+
 ## 0.2.1
 
 BUG FIXES:
