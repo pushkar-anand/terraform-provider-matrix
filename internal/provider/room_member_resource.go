@@ -68,7 +68,8 @@ func (r *RoomMemberResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			"Inviting, kicking and banning go through the Client-Server API. `join` additionally " +
 			"needs the Synapse admin API, because the Matrix auth rules only accept a `join` " +
 			"membership event from the joining user themselves — an administrator can invite an " +
-			"account but never accept on its behalf.\n\n" +
+			"account but never accept on its behalf. That endpoint does not invite either, so in a " +
+			"room that admits people by invitation the provider sends one first.\n\n" +
 			"The account the provider authenticates as must be in the room and hold enough power " +
 			"for the action being taken.",
 		Attributes: map[string]schema.Attribute{
@@ -382,9 +383,24 @@ func (r *RoomMemberResource) apply(ctx context.Context, model RoomMemberResource
 	case matrix.MembershipBan:
 		return r.client.BanUser(ctx, roomID, userID, reason)
 	case matrix.MembershipJoin:
-		// No invite first: the admin endpoint issues one itself when the room's
-		// join rules need it, and sending our own would leave a second, stray
-		// invite event behind on a room that did not.
+		// The admin endpoint appends the member event as the target user and puts
+		// it through the ordinary auth checks; it does not invite on the way. In
+		// a room that admits people by invitation, an uninvited account therefore
+		// fails those checks, so the invitation has to come first -- from us, who
+		// are in the room and hold the power to send it.
+		if current != matrix.MembershipInvite {
+			needed, err := r.needsInviteToJoin(ctx, roomID)
+			if err != nil {
+				return err
+			}
+
+			if needed {
+				if err := r.client.InviteUser(ctx, roomID, userID, reason); err != nil {
+					return fmt.Errorf("inviting before the join: %w", err)
+				}
+			}
+		}
+
 		if err := r.client.AdminJoinUser(ctx, roomID, userID); err != nil {
 			if matrix.IsUnrecognized(err) {
 				return fmt.Errorf(
@@ -399,6 +415,20 @@ func (r *RoomMemberResource) apply(ctx context.Context, model RoomMemberResource
 	default:
 		return fmt.Errorf("unsupported membership %q", target)
 	}
+}
+
+// needsInviteToJoin reports whether the room turns away an uninvited user.
+//
+// Only a public room lets anyone in unasked. A restricted room admits members
+// of another room, but an invitation is accepted there too, so treating it like
+// the rest costs nothing and avoids depending on which room the account is in.
+func (r *RoomMemberResource) needsInviteToJoin(ctx context.Context, roomID string) (bool, error) {
+	rule, err := r.client.GetJoinRule(ctx, roomID)
+	if err != nil {
+		return false, fmt.Errorf("reading the room's join rule: %w", err)
+	}
+
+	return rule != matrix.JoinRulePublic, nil
 }
 
 // readCurrent fills in current_membership from the homeserver.

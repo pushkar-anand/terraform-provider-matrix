@@ -133,6 +133,11 @@ uses the admin API's join endpoint instead, and that only works for **local**
 users. Inviting a remote user is fine; forcing one to join is rejected during
 planning.
 
+That endpoint does not invite either: it appends the member event as the target
+user and runs the ordinary auth checks, which an uninvited account fails in a
+room that admits people by invitation. The provider sends the invitation first
+in that case, so a join into a private room works without a second resource.
+
 `membership = "invite"` is a floor rather than an exact value. Terraform can
 withdraw an invitation but has nothing that un-accepts one, so an invitee who
 joins is not treated as drift and does not get planned back out of the room on

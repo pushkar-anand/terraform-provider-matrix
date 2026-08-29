@@ -8,7 +8,10 @@ FEATURES:
   membership event from the joining user themselves, so an administrator can
   invite an account but never accept on its behalf. Forcing a join is therefore
   limited to local users, which the provider rejects at plan time rather than
-  letting the homeserver refuse it at apply.
+  letting the homeserver refuse it at apply. That endpoint appends the member
+  event as the target user and puts it through the ordinary auth checks without
+  inviting on the way, so in a room that admits people by invitation the
+  provider sends the invitation first.
 
   `membership = "invite"` is a floor rather than an exact value: a user who
   accepts is not drift, since Terraform can withdraw an invitation but has no

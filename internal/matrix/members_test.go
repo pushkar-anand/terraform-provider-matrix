@@ -191,3 +191,42 @@ func TestMembershipRequestCarriesReason(t *testing.T) {
 		t.Errorf("got %s, want %s", encoded, want)
 	}
 }
+
+// A room with no join rules event admits by invitation, per the specification,
+// so an absent event must not read as "anyone may join".
+func TestGetJoinRuleDefaultsToInvite(t *testing.T) {
+	t.Parallel()
+
+	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"errcode":"M_NOT_FOUND","error":"Event not found."}`))
+	}))
+
+	got, err := client.GetJoinRule(t.Context(), "!r:example.org")
+	if err != nil {
+		t.Fatalf("GetJoinRule: %v", err)
+	}
+
+	if got != JoinRuleInvite {
+		t.Errorf("got %q, want %q", got, JoinRuleInvite)
+	}
+}
+
+func TestGetJoinRuleReadsTheEvent(t *testing.T) {
+	t.Parallel()
+
+	for _, rule := range []string{JoinRulePublic, JoinRuleInvite, "knock", "restricted"} {
+		client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(`{"join_rule":"` + rule + `"}`))
+		}))
+
+		got, err := client.GetJoinRule(t.Context(), "!r:example.org")
+		if err != nil {
+			t.Fatalf("GetJoinRule: %v", err)
+		}
+
+		if got != rule {
+			t.Errorf("got %q, want %q", got, rule)
+		}
+	}
+}

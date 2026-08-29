@@ -4,7 +4,7 @@ page_title: "matrix_room_member Resource - matrix"
 subcategory: ""
 description: |-
   Membership of one user in one room.
-  Inviting, kicking and banning go through the Client-Server API. join additionally needs the Synapse admin API, because the Matrix auth rules only accept a join membership event from the joining user themselves — an administrator can invite an account but never accept on its behalf.
+  Inviting, kicking and banning go through the Client-Server API. join additionally needs the Synapse admin API, because the Matrix auth rules only accept a join membership event from the joining user themselves — an administrator can invite an account but never accept on its behalf. That endpoint does not invite either, so in a room that admits people by invitation the provider sends one first.
   The account the provider authenticates as must be in the room and hold enough power for the action being taken.
 ---
 
@@ -12,7 +12,7 @@ description: |-
 
 Membership of one user in one room.
 
-Inviting, kicking and banning go through the Client-Server API. `join` additionally needs the Synapse admin API, because the Matrix auth rules only accept a `join` membership event from the joining user themselves — an administrator can invite an account but never accept on its behalf.
+Inviting, kicking and banning go through the Client-Server API. `join` additionally needs the Synapse admin API, because the Matrix auth rules only accept a `join` membership event from the joining user themselves — an administrator can invite an account but never accept on its behalf. That endpoint does not invite either, so in a room that admits people by invitation the provider sends one first.
 
 The account the provider authenticates as must be in the room and hold enough power for the action being taken.
 

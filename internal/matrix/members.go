@@ -20,8 +20,19 @@ const (
 	MembershipKnock  = "knock"
 )
 
-// EventRoomMember is the state event that carries room membership.
-const EventRoomMember = "m.room.member"
+// State events that govern membership.
+const (
+	EventRoomMember    = "m.room.member"
+	EventRoomJoinRules = "m.room.join_rules"
+)
+
+// JoinRulePublic is the one join rule under which anyone may join a room
+// without first being invited.
+const JoinRulePublic = "public"
+
+// JoinRuleInvite is the rule a room has when it carries no join rules event,
+// per the Matrix specification.
+const JoinRuleInvite = "invite"
 
 // membershipRequest is the body shared by the invite, kick, ban and unban
 // endpoints, all of which take a target and an optional reason.
@@ -105,6 +116,22 @@ func (c *Client) GetMembership(ctx context.Context, roomID, userID string) (stri
 	}
 
 	return member.Membership, nil
+}
+
+// GetJoinRule returns the room's join rule, defaulting to "invite" when the
+// room carries no join rules event, which is what the specification says an
+// absent event means.
+func (c *Client) GetJoinRule(ctx context.Context, roomID string) (string, error) {
+	rule, err := c.GetStateString(ctx, roomID, EventRoomJoinRules, "join_rule")
+	if err != nil {
+		return "", err
+	}
+
+	if rule == "" {
+		return JoinRuleInvite, nil
+	}
+
+	return rule, nil
 }
 
 // IsLocalUser reports whether a user ID belongs to this homeserver, which is
